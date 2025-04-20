@@ -49,6 +49,24 @@ async function generateCodeChallenge(codeVerifier) {
   return hash.digest('base64url');
 }
 
+// Middleware to check if the request is from Figma
+function checkFigmaOrigin(req, res, next) {
+  const origin = req.get('Origin');
+  if (
+    origin &&
+    (origin.startsWith('https://www.figma.com') ||
+      origin.startsWith('http://localhost:3000'))
+  ) {
+    next();
+  } else {
+    res.status(403).send('Forbidden');
+  }
+}
+
+app.get('/', (req, res) => {
+  res.status(403).send('Forbidden');
+});
+
 // Create a read/write key pair for the OAuth flow
 app.get('/auth/keys', (req, res) => {
   const readKey = generateRandomString(32);
