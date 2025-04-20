@@ -1,6 +1,6 @@
 // Backend server (Node.js with Express) - server.js
 import express, { json, urlencoded } from 'express';
-import { post, get } from 'axios';
+import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -104,19 +104,22 @@ app.post('/auth/token-exchange', async (req, res) => {
 
   try {
     // Exchange code for tokens using the code_verifier
-    const tokenResponse = await post('https://oauth2.googleapis.com/token', {
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${process.env.SITE_URL}/auth/callback`,
-      grant_type: 'authorization_code',
-      code_verifier,
-    });
+    const tokenResponse = await axios.post(
+      'https://oauth2.googleapis.com/token',
+      {
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: `${process.env.SITE_URL}/auth/callback`,
+        grant_type: 'authorization_code',
+        code_verifier,
+      }
+    );
 
     const { access_token, id_token, refresh_token } = tokenResponse.data;
 
     // Get user info
-    const userInfoResponse = await get(
+    const userInfoResponse = await axios.get(
       'https://www.googleapis.com/oauth2/v3/userinfo',
       {
         headers: { Authorization: `Bearer ${access_token}` },
@@ -157,7 +160,7 @@ app.post('/auth/refresh-token', async (req, res) => {
   }
 
   try {
-    const response = await post('https://oauth2.googleapis.com/token', {
+    const response = await axios.post('https://oauth2.googleapis.com/token', {
       refresh_token,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
