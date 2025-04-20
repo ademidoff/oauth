@@ -25,6 +25,10 @@ app.use(
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
+app.get('/', async (req, res) => {
+  res.status(401).send('Unauthorized');
+});
+
 // Callback endpoint
 app.get('/auth/callback', async (req, res) => {
   const { code, state } = req.query;
