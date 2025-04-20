@@ -3,6 +3,7 @@ import express, { json, urlencoded } from 'express';
 import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -17,6 +18,8 @@ app.use(
       'https://www.figma.com/file/*',
       // Add the desktop app origin if needed
       'figma:*',
+      // For local development
+      'http://localhost:3000',
     ],
     credentials: true,
   })
@@ -25,162 +28,241 @@ app.use(
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
-app.get('/', async (req, res) => {
-  res.status(401).send('Unauthorized');
+// Google OAuth configuration
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
+const SCOPES = 'profile email';
+
+// In-memory storage for auth keys and states (use a database in production)
+const authStore = new Map();
+
+// Generate a random string for PKCE code_verifier and auth keys
+function generateRandomString(length) {
+  return crypto.randomBytes(length).toString('base64url').substring(0, length);
+}
+
+// Create SHA-256 hash for PKCE code_challenge
+async function generateCodeChallenge(codeVerifier) {
+  const hash = crypto.createHash('sha256');
+  hash.update(codeVerifier);
+  return hash.digest('base64url');
+}
+
+// Create a read/write key pair for the OAuth flow
+app.get('/auth/keys', (req, res) => {
+  const readKey = generateRandomString(32);
+  const writeKey = generateRandomString(32);
+
+  // Store the keys with empty data
+  authStore.set(readKey, { writeKey, data: null });
+
+  res.json({ readKey, writeKey });
 });
 
-// Callback endpoint
+// Start the OAuth process with Google, including PKCE
+app.get('/auth/google', async (req, res) => {
+  const { readKey } = req.query;
+
+  if (!readKey || !authStore.has(readKey)) {
+    return res.status(400).send('Invalid read key');
+  }
+
+  const authData = authStore.get(readKey);
+  const { writeKey } = authData;
+
+  // Generate PKCE code verifier and challenge
+  const codeVerifier = generateRandomString(64);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  // Store the code verifier with the auth data
+  authStore.set(readKey, {
+    ...authData,
+    codeVerifier,
+    state: writeKey, // Use the writeKey as the OAuth state parameter
+  });
+
+  // Construct Google OAuth URL with PKCE parameters
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
+  authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
+  authUrl.searchParams.append('response_type', 'code');
+  authUrl.searchParams.append('scope', SCOPES);
+  authUrl.searchParams.append('state', writeKey);
+  authUrl.searchParams.append('code_challenge', codeChallenge);
+  authUrl.searchParams.append('code_challenge_method', 'S256');
+  authUrl.searchParams.append('access_type', 'offline');
+
+  // Redirect the user to Google's authentication page
+  res.redirect(authUrl.toString());
+});
+
+// Handle the OAuth callback from Google
 app.get('/auth/callback', async (req, res) => {
   const { code, state } = req.query;
 
-  if (!code) {
-    return res.status(400).send('Authorization code missing');
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state parameter');
   }
 
-  // Return an HTML page that will request the code_verifier and complete the auth
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Authentication</title>
-      <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-      </style>
-    </head>
-    <body>
-      <h3>Completing authentication...</h3>
-      
-      <script>
-        // Request the code_verifier from the opener window
-        window.opener.postMessage({ type: 'requestCodeVerifier' }, '*');
-        
-        // Listen for the response with the code_verifier
-        window.addEventListener('message', async function(event) {
-          // Make sure the message is from our plugin
-          if (event.data.type === 'codeVerifierFromPlugin') {
-            const codeVerifier = event.data.codeVerifier;
-            
-            try {
-              // Send the code and code_verifier to our backend
-              const response = await fetch('/auth/token-exchange', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  code: '${code}',
-                  state: '${state}',
-                  code_verifier: codeVerifier
-                })
-              });
-              
-              if (!response.ok) {
-                throw new Error('Token exchange failed');
-              }
-              
-              const data = await response.json();
-              
-              // Send the authentication data back to opener
-              window.opener.postMessage({
-                type: 'authComplete',
-                token: data.access_token,
-                user: data.user
-              }, '*');
-              
-              document.body.innerHTML = '<h3>Authentication successful! You can close this window.</h3>';
-            } catch (error) {
-              console.error('Authentication error:', error);
-              document.body.innerHTML = '<h3>Authentication failed. Please try again.</h3>';
-            }
-          }
-        });
-      </script>
-    </body>
-    </html>
-  `);
-});
+  // Find the auth data by writeKey (state)
+  let readKey = null;
+  let authData = null;
 
-// Token exchange endpoint
-app.post('/auth/token-exchange', async (req, res) => {
-  const { code, code_verifier } = req.body;
+  for (const [key, data] of authStore.entries()) {
+    if (data.state === state) {
+      readKey = key;
+      authData = data;
+      break;
+    }
+  }
 
-  if (!code || !code_verifier) {
-    return res.status(400).json({ error: 'Missing required parameters' });
+  if (!readKey || !authData) {
+    return res.status(400).send('Invalid state parameter');
   }
 
   try {
-    // Exchange code for tokens using the code_verifier
+    // Exchange authorization code for access token using PKCE
     const tokenResponse = await axios.post(
       'https://oauth2.googleapis.com/token',
       {
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${process.env.SITE_URL}/auth/callback`,
+        code_verifier: authData.codeVerifier,
         grant_type: 'authorization_code',
-        code_verifier,
+        redirect_uri: REDIRECT_URI,
       }
     );
 
-    const { access_token, id_token, refresh_token } = tokenResponse.data;
-
-    // Get user info
-    const userInfoResponse = await axios.get(
-      'https://www.googleapis.com/oauth2/v3/userinfo',
-      {
-        headers: { Authorization: `Bearer ${access_token}` },
-      }
-    );
-
-    // Extract user data
-    const user = {
-      id: userInfoResponse.data.sub,
-      name: userInfoResponse.data.name,
-      email: userInfoResponse.data.email,
-      picture: userInfoResponse.data.picture,
-    };
-
-    // You might want to store the refresh_token in your database
-    // associated with this user for later token refresh operations
-
-    // Return the access token and user info
-    res.json({
-      access_token,
-      user,
+    // Store the token in our auth store
+    authStore.set(readKey, {
+      ...authData,
+      data: {
+        access_token: tokenResponse.data.access_token,
+        refresh_token: tokenResponse.data.refresh_token,
+        expires_in: tokenResponse.data.expires_in,
+      },
     });
+
+    // Show success page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication</title>
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+          .success { color: green; }
+        </style>
+      </head>
+      <body>
+        <h2 class="success">Authentication Successful!</h2>
+        <p>You can close this window and return to Figma.</p>
+      </body>
+      </html>
+    `);
   } catch (error) {
     console.error(
       'Token exchange error:',
       error.response?.data || error.message
     );
-    res.status(500).json({ error: 'Authentication failed' });
+    res.status(500).send('Failed to exchange authorization code for tokens');
   }
 });
 
-// Token refresh endpoint (for when access tokens expire)
-app.post('/auth/refresh-token', async (req, res) => {
+// Poll endpoint to get the token
+app.get('/auth/poll', (req, res) => {
+  const { key } = req.query;
+
+  if (!key || !authStore.has(key)) {
+    return res.status(400).json({ error: 'Invalid key' });
+  }
+
+  const authData = authStore.get(key);
+
+  if (!authData.data) {
+    return res.status(202).json({ message: 'Waiting for authentication' });
+  }
+
+  // Get the tokens and then delete the auth data
+  const { data } = authData;
+  authStore.delete(key);
+
+  // Return the tokens to the Figma plugin
+  res.json(data);
+});
+
+// Get user info from Google API
+app.get('/auth/user', async (req, res) => {
+  // Get the access token from the request header
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  const accessToken = authHeader.split(' ')[1];
+
+  try {
+    // Fetch user info from Google
+    const userInfoResponse = await axios.get(
+      'https://www.googleapis.com/oauth2/v2/userinfo',
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    const userData = {
+      name: userInfoResponse.data.name,
+      email: userInfoResponse.data.email,
+      picture: userInfoResponse.data.picture,
+    };
+
+    // Return user data
+    res.json(userData);
+  } catch (error) {
+    console.error('User info error:', error.response?.data || error.message);
+
+    // Handle token expiration or invalidity
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    res.status(500).json({ error: 'Failed to fetch user information' });
+  }
+});
+
+// Refresh an access token using a refresh token
+app.post('/auth/refresh', async (req, res) => {
   const { refresh_token } = req.body;
 
   if (!refresh_token) {
-    return res.status(400).json({ error: 'Refresh token is required' });
+    return res.status(400).json({ error: 'Refresh token required' });
   }
 
   try {
-    const response = await axios.post('https://oauth2.googleapis.com/token', {
-      refresh_token,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-    });
+    // Exchange refresh token for a new access token
+    const tokenResponse = await axios.post(
+      'https://oauth2.googleapis.com/token',
+      {
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token,
+        grant_type: 'refresh_token',
+      }
+    );
 
     res.json({
-      access_token: response.data.access_token,
-      expires_in: response.data.expires_in,
+      access_token: tokenResponse.data.access_token,
+      expires_in: tokenResponse.data.expires_in,
     });
   } catch (error) {
     console.error(
       'Token refresh error:',
       error.response?.data || error.message
     );
-    res.status(500).json({ error: 'Token refresh failed' });
+    res.status(500).json({ error: 'Failed to refresh access token' });
   }
 });
 

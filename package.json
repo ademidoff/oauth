@@ -6,14 +6,19 @@
   "main": "server.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "build": "esbuild plugin/code.ts --bundle --target=es6 --loader:.svg=text --outfile=plugin/dist/code.js --watch"
   },
   "author": "Alex Demidoff",
   "license": "ISC",
   "dependencies": {
+    "@figma/plugin-typings": "*",
     "axios": "^1.8.4",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.2"
   }
 }
