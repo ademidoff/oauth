@@ -1,5 +1,6 @@
 // declare const SITE_URL: string;
-const SITE_URL = 'https://auth.demidoff.me'; // Replace with your server URL
+const SITE_URL = 'https://auth.demidoff.me';
+const pluginId = figma.pluginId;
 
 interface User {
   name: string;
@@ -71,6 +72,7 @@ async function startOAuthFlow(): Promise<void> {
     // Get a read/write key pair from the server
     const keyResponse = await fetch(`${SITE_URL}/auth/keys`, {
       method: 'GET',
+      credentials: 'include',
     });
 
     if (!keyResponse.ok) {
@@ -81,40 +83,73 @@ async function startOAuthFlow(): Promise<void> {
 
     // Step 1: Open the authentication window
     figma.showUI(
-      `<script>
-        // Open the authentication page in a new window
-        const authWindow = window.open("${SITE_URL}/auth/google?readKey=${readKey}", "_blank");
-        
-        // Function to poll the server for the result
-        async function pollForAuthResult() {
-          try {
-            const response = await fetch("${SITE_URL}/auth/poll?key=${readKey}");
-            if (response.ok) {
-              const data = await response.json();
-              if (data.access_token) {
-                // Send the token back to the plugin
-                parent.postMessage({ 
-                  pluginMessage: { 
-                    type: 'auth-success', 
-                    token: data.access_token 
-                  } 
-                }, 'https://www.figma.com');
-                return;
-              }
-            }
-            // If we haven't received the token yet, poll again
-            setTimeout(pollForAuthResult, 2000);
-          } catch (error) {
-            console.error('Polling error:', error);
-            // Keep polling even if there's an error
-            setTimeout(pollForAuthResult, 2000);
+      `<DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="theme-color" content="#000000">
+        <meta name="description" content="Rewordly: Figma Translation Plugin">
+        <meta name="author" content="Alex Demidoff">
+        <meta name="keywords" content="Figma, Plugin, Translation, Rewordly">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
           }
-        }
-        
-        // Start polling
-        pollForAuthResult();
-      </script>`,
-      { width: 1, height: 1 }
+        </style>
+      </head>
+      <body>
+        <div id="app"></div>
+        <script>
+          window.pluginId = ${pluginId};
+          // SITE_URL -> http://localhost:3000 or https://your-production-url
+          // window.location.href = '${SITE_URL}'; 
+
+          // Open the authentication page in a new window
+          // const authWindow = window.open("${SITE_URL}/auth/google?readKey=${readKey}", "_blank");
+
+          // Function to poll the server for the result
+          async function pollForAuthResult() {
+            try {
+              const response = await fetch("${SITE_URL}/auth/poll?key=${readKey}");
+              if (response.ok) {
+                const data = await response.json();
+                if (data.access_token) {
+                  // Send the token back to the plugin
+                  parent.postMessage({
+                    pluginMessage: {
+                      type: 'auth-success',
+                      token: data.access_token
+                    }
+                  }, 'https://www.figma.com');
+                  return;
+                }
+              }
+              // If we haven't received the token yet, poll again
+              setTimeout(pollForAuthResult, 2000);
+            } catch (error) {
+              console.error('Polling error:', error);
+              // Keep polling even if there's an error
+              setTimeout(pollForAuthResult, 2000);
+            }
+          }
+
+          // Start polling
+          pollForAuthResult();
+        </script>
+      </body>
+      </html>
+    `,
+      { width: 450, height: 300 }
     );
 
     // Listen for the auth result
@@ -133,7 +168,7 @@ async function startOAuthFlow(): Promise<void> {
     };
   } catch (error: any) {
     const errorMessage = `Authentication failed${
-      error?.message ? ' :' + error.message : ''
+      error?.message ? ': ' + error.message : ''
     }`;
     console.error(errorMessage);
     figma.notify(errorMessage);

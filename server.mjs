@@ -28,6 +28,7 @@ app.use(
 
 app.use(json());
 app.use(urlencoded({ extended: true }));
+app.disable('x-powered-by');
 
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -75,6 +76,7 @@ app.get('/auth/keys', (req, res) => {
 
   // Store the keys with empty data
   authStore.set(readKey, { writeKey, data: null });
+  console.log('Generated keys:', { readKey, writeKey });
 
   res.json({ readKey, writeKey });
 });
