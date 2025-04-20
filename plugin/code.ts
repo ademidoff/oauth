@@ -1,4 +1,5 @@
-declare const SITE_URL: string;
+// declare const SITE_URL: string;
+const SITE_URL = 'https://auth.demidoff.me'; // Replace with your server URL
 
 interface User {
   name: string;
@@ -127,13 +128,16 @@ async function startOAuthFlow(): Promise<void> {
         } else {
           figma.notify('Failed to get user info');
         }
-        figma.closePlugin();
+        // figma.closePlugin();
       }
     };
-  } catch (error) {
-    console.error('Auth error:', error);
-    figma.notify('Authentication failed');
-    figma.closePlugin();
+  } catch (error: any) {
+    const errorMessage = `Authentication failed${
+      error?.message ? ' :' + error.message : ''
+    }`;
+    console.error(errorMessage);
+    figma.notify(errorMessage);
+    // figma.closePlugin();
   }
 }
 
@@ -147,7 +151,7 @@ async function main() {
     if (user) {
       figma.notify(`Logged in as ${user.name}`);
       // Continue with your plugin's main functionality...
-      figma.closePlugin();
+      // figma.closePlugin();
     } else {
       // User info couldn't be fetched, re-authenticate
       await startOAuthFlow();

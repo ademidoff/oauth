@@ -20,6 +20,7 @@ app.use(
       'figma:*',
       // For local development
       'http://localhost:3000',
+      '*',
     ],
     credentials: true,
   })
