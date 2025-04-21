@@ -1,6 +1,7 @@
 // declare const SITE_URL: string;
 const SITE_URL = 'https://auth.demidoff.me';
 const pluginId = figma.pluginId;
+console.log('Figma Plugin ID:', pluginId);
 
 interface User {
   name: string;
@@ -35,8 +36,7 @@ async function startOAuthFlow(): Promise<void> {
   figma.showUI(
     `
     <script>
-      window.pluginId = '${pluginId}';
-      window.location.href = '${SITE_URL}';
+      window.location.href = '${SITE_URL}?pluginId=' + '${pluginId}';
     </script>
   `,
     { width: 1, height: 1, visible: false }

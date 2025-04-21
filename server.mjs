@@ -82,9 +82,12 @@ app.get('/', (req, res) => {
       <h2 class="progress">Authenticating...</h2>
     </body>
     <script>
-      console.log('pluginId', window.pluginId);
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    const pluginId = params.get('pluginId');
+    console.log('pluginId', pluginId);
       // Tell the main plugin code that the UI is ready
-      parent.postMessage({ pluginMessage: { type: 'ui-ready' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'ui-ready' }, pluginId: '*' }, '*');
 
       // Listen for messages from the plugin
       window.onmessage = async (event) => {
@@ -111,7 +114,8 @@ app.get('/', (req, res) => {
               pluginMessage: { 
                 type: 'auth-error', 
                 error: error.message 
-              } 
+              }, 
+              pluginId: '*' 
             }, '*');
           }
         } else if (message.type === 'get-user-info') {
@@ -130,14 +134,16 @@ app.get('/', (req, res) => {
                 pluginMessage: { 
                   type: 'user-info-result', 
                   userData 
-                } 
+                },
+                pluginId: '*'
               }, '*');
             } else {
               if (response.status === 401) {
-                parent.postMessage({ 
+                parent.postMessage({
                   pluginMessage: { 
                     type: 'auth-expired'
-                  } 
+                  },
+                  pluginId: '*'
                 }, '*');
               } else {
                 throw new Error("Failed to fetch user data");
@@ -149,7 +155,8 @@ app.get('/', (req, res) => {
               pluginMessage: { 
                 type: 'user-info-error', 
                 error: error.message 
-              } 
+              },
+              pluginId: '*'
             }, '*');
           }
         }
@@ -167,7 +174,8 @@ app.get('/', (req, res) => {
                 pluginMessage: { 
                   type: 'auth-success', 
                   token: data.access_token 
-                } 
+                },
+                pluginId: '*'
               }, '*');
               return;
             }
