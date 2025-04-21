@@ -87,7 +87,7 @@ app.get('/', (req, res) => {
     const pluginId = params.get('pluginId');
     console.log('pluginId', pluginId);
       // Tell the main plugin code that the UI is ready
-      parent.postMessage({ pluginMessage: { type: 'ui-ready' }, pluginId: '*' }, '*');
+      parent.postMessage({ pluginMessage: { type: 'ui-ready' }, pluginId }, '*');
 
       // Listen for messages from the plugin
       window.onmessage = async (event) => {
@@ -110,12 +110,12 @@ app.get('/', (req, res) => {
             pollForAuthResult(readKey);
           } catch (error) {
             console.error("Auth error:", error);
-            parent.postMessage({ 
+            parent.postMessage({
               pluginMessage: { 
                 type: 'auth-error', 
                 error: error.message 
               }, 
-              pluginId: '*' 
+              pluginId
             }, '*');
           }
         } else if (message.type === 'get-user-info') {
@@ -135,7 +135,7 @@ app.get('/', (req, res) => {
                   type: 'user-info-result', 
                   userData 
                 },
-                pluginId: '*'
+                pluginId
               }, '*');
             } else {
               if (response.status === 401) {
@@ -143,7 +143,7 @@ app.get('/', (req, res) => {
                   pluginMessage: { 
                     type: 'auth-expired'
                   },
-                  pluginId: '*'
+                  pluginId
                 }, '*');
               } else {
                 throw new Error("Failed to fetch user data");
@@ -156,7 +156,7 @@ app.get('/', (req, res) => {
                 type: 'user-info-error', 
                 error: error.message 
               },
-              pluginId: '*'
+              pluginId
             }, '*');
           }
         }
@@ -171,11 +171,11 @@ app.get('/', (req, res) => {
             if (data.access_token) {
               // Send the token back to the plugin
               parent.postMessage({ 
-                pluginMessage: { 
+                pluginMessage: {
                   type: 'auth-success', 
                   token: data.access_token 
                 },
-                pluginId: '*'
+                pluginId
               }, '*');
               return;
             }
