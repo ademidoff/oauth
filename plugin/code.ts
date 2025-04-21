@@ -1,5 +1,6 @@
 // declare const SITE_URL: string;
 const SITE_URL = 'https://auth.demidoff.me';
+const pluginId = figma.pluginId;
 
 interface User {
   name: string;
@@ -34,104 +35,8 @@ async function startOAuthFlow(): Promise<void> {
   figma.showUI(
     `
     <script>
-      // Tell the main plugin code that the UI is ready
-      parent.postMessage({ pluginMessage: { type: 'ui-ready' } }, '*');
-
-      // Listen for messages from the plugin
-      window.onmessage = async (event) => {
-        const message = event.data.pluginMessage;
-        
-        if (message.type === 'start-auth') {
-          try {
-            // Step 1: Get read/write keys from the server
-            const keyResponse = await fetch("${SITE_URL}/auth/keys");
-            if (!keyResponse.ok) {
-              throw new Error("Failed to get authentication keys");
-            }
-            
-            const { readKey } = await keyResponse.json();
-            
-            // Step 2: Open the authentication window
-            window.open("${SITE_URL}/auth/google?readKey=" + readKey, "_blank");
-            
-            // Step 3: Start polling for the auth result
-            pollForAuthResult(readKey);
-          } catch (error) {
-            console.error("Auth error:", error);
-            parent.postMessage({ 
-              pluginMessage: { 
-                type: 'auth-error', 
-                error: error.message 
-              } 
-            }, '*');
-          }
-        } else if (message.type === 'get-user-info') {
-          try {
-            // Get user info using the access token
-            const accessToken = message.accessToken;
-            const response = await fetch("${SITE_URL}/auth/user", {
-              headers: {
-                'Authorization': 'Bearer ' + accessToken
-              }
-            });
-            
-            if (response.ok) {
-              const userData = await response.json();
-              parent.postMessage({ 
-                pluginMessage: { 
-                  type: 'user-info-result', 
-                  userData 
-                } 
-              }, '*');
-            } else {
-              if (response.status === 401) {
-                parent.postMessage({ 
-                  pluginMessage: { 
-                    type: 'auth-expired'
-                  } 
-                }, '*');
-              } else {
-                throw new Error("Failed to fetch user data");
-              }
-            }
-          } catch (error) {
-            console.error("User info error:", error);
-            parent.postMessage({ 
-              pluginMessage: { 
-                type: 'user-info-error', 
-                error: error.message 
-              } 
-            }, '*');
-          }
-        }
-      };
-      
-      // Poll the server for auth result
-      async function pollForAuthResult(readKey) {
-        try {
-          const response = await fetch("${SITE_URL}/auth/poll?key=" + readKey);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.access_token) {
-              // Send the token back to the plugin
-              parent.postMessage({ 
-                pluginMessage: { 
-                  type: 'auth-success', 
-                  token: data.access_token 
-                } 
-              }, '*');
-              return;
-            }
-          }
-          
-          // If we haven't received the token yet, poll again
-          setTimeout(() => pollForAuthResult(readKey), 2000);
-        } catch (error) {
-          console.error("Polling error:", error);
-          // Keep polling even if there's an error
-          setTimeout(() => pollForAuthResult(readKey), 2000);
-        }
-      }
+      window.pluginId = '${pluginId}';
+      window.location.href = '${SITE_URL}';
     </script>
   `,
     { width: 1, height: 1, visible: false }
