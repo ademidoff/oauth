@@ -86,6 +86,7 @@ app.get('/', (req, res) => {
 
 // Create a read/write key pair for the OAuth flow
 app.get('/auth/keys', (req, res) => {
+  console.log('/auth/keys request origin:', req.get('Origin'));
   const readKey = generateRandomString(32);
   const writeKey = generateRandomString(32);
 
