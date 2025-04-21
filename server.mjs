@@ -9,6 +9,10 @@ dotenv.config();
 
 const app = express();
 
+app.use(json());
+app.use(urlencoded({ extended: true }));
+app.disable('x-powered-by');
+
 // Enable CORS for Figma domains
 app.use(
   cors({
@@ -25,10 +29,6 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(json());
-app.use(urlencoded({ extended: true }));
-app.disable('x-powered-by');
 
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -66,7 +66,22 @@ function checkFigmaOrigin(req, res, next) {
 }
 
 app.get('/', (req, res) => {
-  res.status(403).send('Forbidden');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Authentication</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+        .success { color: green; }
+        .progress { color: slateblue; }
+      </style>
+    </head>
+    <body>
+      <h2 class="progress">Authenticating...</h2>
+    </body>
+    </html>
+  `);
 });
 
 // Create a read/write key pair for the OAuth flow
