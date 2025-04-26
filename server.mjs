@@ -1,6 +1,5 @@
-// Backend server (Node.js with Express) - server.js
+// Backend server (Node.js with Express)
 import express, { json, urlencoded } from 'express';
-import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -8,6 +7,63 @@ import crypto from 'crypto';
 dotenv.config();
 
 const app = express();
+
+// Helper function to make HTTP requests using native Node.js modules
+async function makeRequest(url, options = {}, data = null) {
+  const fetchOptions = {
+    method: options.method || 'GET',
+    headers: options.headers || {},
+  };
+
+  try {
+    if (data) {
+      fetchOptions.body = JSON.stringify(data);
+      fetchOptions.headers['Content-Type'] = 'application/json';
+    }
+
+    const response = await fetch(url, fetchOptions);
+
+    // Check if the response is ok (status in the range 200-299)
+    if (!response.ok) {
+      const errorData = await response.text();
+      let parsedError;
+
+      try {
+        // Try to parse as JSON if possible
+        parsedError = JSON.parse(errorData);
+      } catch (e) {
+        // If not JSON, use as text
+        parsedError = errorData;
+      }
+
+      const error = new Error(`Request failed with status ${response.status}`);
+      error.status = response.status;
+      error.response = { data: parsedError };
+      throw error;
+    }
+
+    // Check Content-Type to handle JSON responses
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return {
+        status: response.status,
+        data: await response.json(),
+      };
+    } else {
+      // Handle non-JSON responses
+      return {
+        status: response.status,
+        data: await response.text(),
+      };
+    }
+  } catch (error) {
+    // Handle network errors or JSON parsing errors
+    if (!error.status) {
+      error.message = `Network error: ${error.message}`;
+    }
+    throw error;
+  }
+}
 
 app.use(json());
 app.use(urlencoded({ extended: true }));
@@ -84,9 +140,8 @@ app.get('/', (req, res) => {
     <script>
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
-      const pluginId = params.get('pluginId');
       const action = params.get('action');
-      console.log('pluginId', pluginId);
+      const pluginId = 'Rewordy'; // Replace with your actual plugin ID
 
       if (action === 'get-user-info') {
         // Let the plugin know that UI is ready to receive user info
@@ -280,8 +335,14 @@ app.get('/auth/callback', async (req, res) => {
 
   try {
     // Exchange authorization code for access token using PKCE
-    const tokenResponse = await axios.post(
+    const tokenResponse = await makeRequest(
       'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
       {
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
@@ -363,7 +424,7 @@ app.get('/auth/user', async (req, res) => {
 
   try {
     // Fetch user info from Google
-    const userInfoResponse = await axios.get(
+    const userInfoResponse = await makeRequest(
       'https://www.googleapis.com/oauth2/v2/userinfo',
       {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -400,8 +461,14 @@ app.post('/auth/refresh', async (req, res) => {
 
   try {
     // Exchange refresh token for a new access token
-    const tokenResponse = await axios.post(
+    const tokenResponse = await makeRequest(
       'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
       {
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
