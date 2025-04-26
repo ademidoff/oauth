@@ -92,6 +92,8 @@ app.get('/', (req, res) => {
       // Listen for messages from the plugin
       window.onmessage = async (event) => {
         const message = event.data.pluginMessage;
+        console.log("Received data:", event.data);
+        console.log("Received message:", message);
         
         if (message.type === 'start-auth') {
           try {
@@ -125,7 +127,8 @@ app.get('/', (req, res) => {
             const response = await fetch("${SITE_URL}/auth/user", {
               headers: {
                 'Authorization': 'Bearer ' + accessToken
-              }
+              },
+              credentials: 'include'
             });
             
             if (response.ok) {
@@ -344,7 +347,7 @@ app.get('/auth/poll', (req, res) => {
 // Get user info from Google API
 app.get('/auth/user', async (req, res) => {
   // Get the access token from the request header
-  const authHeader = req.headers.authorization;
+  const authHeader = req.get('authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Access token required' });
