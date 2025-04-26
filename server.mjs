@@ -122,6 +122,19 @@ function checkFigmaOrigin(req, res, next) {
   }
 }
 
+// Serve favicon.ico
+app.get('/favicon.ico', (req, res) => {
+  // Base64 encoded simple icon (a blue key shape representing authentication)
+  const faviconBuffer = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAB+0lEQVR4AcXBA3BsQQDG8f+322fbtm3btm3bto1n27Zt27Z9zTttd7vZ3MlMvt8AxP9kxHVTPS4DpEYNhJY+Rax1Ij6XLhPi9cZr/g5jacSAWqjhKoh/ZKraa7xxRE4K0pKnEasdB0BIWSfCqnkSZlcgusLLqtsRWhGfoZkdEVbZi5BFbiMSHpxDyAIXXEYYEb/AxbcuEZTfjOC5LmG76gZBs1wwOqohbIqu8rFrcoBG+QwImuECdBGa95CQpe547TohbLLLkseMTgieex+fi45I8LwHheipRch895BN19X3ILTiiQf6VosOCJzmFF75NOLnOYVuuTuOUVSPUEw3QvZOS1G/vYDgOQ9HPPIPvmHZlohPVKUKaJwA9cv/IL5G3WlFF7kUuzGLQO2ay5mcoQn0IFSR0ICuSYf47/mtDgSFZugVYZXPiOgzXxhFbABXxE8/LC5D42rBhddtNgSFlnEga801RLTLZ4wZ3QwIByo1hsAL6/6B8EqnvbOa2RGyJQ6ZoQH1CLb+dP8/ENXgKoJnOx+09/ENsaFiPVgj/khcbjWNIN/tDQje15bwypdfKZt2A/E/OGOLre0zIv6H1+4LBIXW8FH4kXeALhPCJ+sOl9cYQpHVT4vGhQzIntfqoxE+0ZFzVwuCouqeEPErislJa50OcZmdDYg/Tdfn/QZUnAzdUa0rOQAAAABJRU5ErkJggg==',
+    'base64'
+  );
+
+  res.setHeader('Content-Type', 'image/x-icon');
+  res.setHeader('Cache-Control', 'public, max-age=604800'); // Cache for a week (7 days)
+  res.send(faviconBuffer);
+});
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
