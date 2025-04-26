@@ -92,8 +92,7 @@ app.get('/', (req, res) => {
       // Listen for messages from the plugin
       window.onmessage = async (event) => {
         const message = event.data.pluginMessage;
-        console.log("Received data:", event.data);
-        console.log("Received message:", message);
+        console.log("Received message:", message, "pluginId:", event.data.pluginId);
         
         if (message.type === 'start-auth') {
           try {
