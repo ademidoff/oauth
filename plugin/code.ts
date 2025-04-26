@@ -1,7 +1,6 @@
 // declare const SITE_URL: string;
 const SITE_URL = 'https://auth.demidoff.me';
 const pluginId = figma.pluginId;
-console.log('Figma Plugin ID:', pluginId);
 
 interface User {
   name: string;
@@ -48,14 +47,18 @@ async function startOAuthFlow(): Promise<void> {
       // UI is ready, start the auth flow
       figma.ui.postMessage({ type: 'start-auth' });
     } else if (msg.type === 'auth-success') {
+      console.log('Auth success:', msg.token);
       // Auth succeeded, store the token
       await storeAccessToken(msg.token);
 
       // Get user info using the iframe
-      figma.ui.postMessage({
-        type: 'get-user-info',
-        accessToken: msg.token,
-      });
+      figma.ui.postMessage(
+        {
+          type: 'get-user-info',
+          accessToken: msg.token,
+        },
+        { origin: `${SITE_URL}` }
+      );
     } else if (msg.type === 'user-info-result') {
       // Got user info, show success notification
       figma.notify(`Logged in as ${msg.userData.name}`);
@@ -88,53 +91,8 @@ async function getUserInfo(): Promise<User | null> {
   figma.showUI(
     `
     <script>
-      // Tell the main plugin code that the UI is ready
-      parent.postMessage({ pluginMessage: { type: 'ui-ready-for-user-info' } }, '*');
-      
-      // Listen for messages from the plugin
-      window.onmessage = async (event) => {
-        const message = event.data.pluginMessage;
-        
-        if (message.type === 'get-user-info') {
-          try {
-            const accessToken = message.accessToken;
-            const response = await fetch("${SITE_URL}/auth/user", {
-              headers: {
-                'Authorization': 'Bearer ' + accessToken
-              }
-            });
-            
-            if (response.ok) {
-              const userData = await response.json();
-              parent.postMessage({ 
-                pluginMessage: { 
-                  type: 'user-info-result', 
-                  userData 
-                } 
-              }, '*');
-            } else {
-              if (response.status === 401) {
-                parent.postMessage({ 
-                  pluginMessage: { 
-                    type: 'auth-expired'
-                  } 
-                }, '*');
-              } else {
-                throw new Error("Failed to fetch user data");
-              }
-            }
-          } catch (error) {
-            console.error("User info error:", error);
-            parent.postMessage({ 
-              pluginMessage: { 
-                type: 'user-info-error', 
-                error: error.message 
-              } 
-            }, '*');
-          }
-        }
-      };
-    </script>
+      window.location.href = '${SITE_URL}?action=get-user-info';
+    </script>    
   `,
     { width: 1, height: 1, visible: false }
   );
@@ -147,11 +105,15 @@ async function getUserInfo(): Promise<User | null> {
 
     figma.ui.onmessage = async (msg) => {
       if (msg.type === 'ui-ready-for-user-info') {
-        figma.ui.postMessage({
-          type: 'get-user-info',
-          accessToken,
-        });
+        figma.ui.postMessage(
+          {
+            type: 'get-user-info',
+            accessToken,
+          },
+          { origin: `${SITE_URL}` }
+        );
       } else if (msg.type === 'user-info-result') {
+        console.log('User info result:', msg.userData);
         clearTimeout(timeoutId);
         resolve(msg.userData);
       } else if (msg.type === 'auth-expired') {
@@ -174,8 +136,12 @@ async function main() {
   if (authenticated) {
     try {
       const user = await getUserInfo();
+      console.log('User info:', user);
       if (user) {
-        figma.notify(`Logged in as ${user.name}`);
+        figma.notify(`Logged in as ${user.name}`, {
+          timeout: 5000,
+          button: { text: 'Dismiss', action: () => true },
+        });
         // Continue with your plugin's main functionality...
         figma.closePlugin();
       } else {
@@ -183,7 +149,10 @@ async function main() {
         await startOAuthFlow();
       }
     } catch (error) {
-      console.error('Error getting user info:', error);
+      if (error instanceof Error) {
+        console.error('Error getting user info:', error.message);
+        figma.notify(`Error getting user info: ${error.message}`);
+      }
       // If there was an error (like expired token), start auth flow
       await startOAuthFlow();
     }
