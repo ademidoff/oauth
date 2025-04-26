@@ -82,12 +82,19 @@ app.get('/', (req, res) => {
       <h2 class="progress">Authenticating...</h2>
     </body>
     <script>
-    const url = new URL(window.location.href);
-    const params = new URLSearchParams(url.search);
-    const pluginId = params.get('pluginId');
-    console.log('pluginId', pluginId);
-      // Tell the main plugin code that the UI is ready
-      parent.postMessage({ pluginMessage: { type: 'ui-ready' }, pluginId }, '*');
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      const pluginId = params.get('pluginId');
+      const action = params.get('action');
+      console.log('pluginId', pluginId);
+
+      if (action === 'get-user-info') {
+        // Let the plugin know that UI is ready to receive user info
+        parent.postMessage({ pluginMessage: { type: 'ui-ready-for-user-info' }, pluginId }, '*');
+      } else {
+        // Let the plugin know that UI is ready
+        parent.postMessage({ pluginMessage: { type: 'ui-ready' }, pluginId }, '*');
+      }
 
       // Listen for messages from the plugin
       window.onmessage = async (event) => {
