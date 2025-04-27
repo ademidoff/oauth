@@ -35,7 +35,7 @@ async function startOAuthFlow(): Promise<void> {
   figma.showUI(
     `
     <script>
-      window.location.href = '${SITE_URL}?pluginId=' + '${pluginId}';
+      window.location.href = '${SITE_URL}';
     </script>
   `,
     { width: 1, height: 1, visible: false }
@@ -45,7 +45,7 @@ async function startOAuthFlow(): Promise<void> {
   figma.ui.onmessage = async (msg) => {
     if (msg.type === 'ui-ready') {
       // UI is ready, start the auth flow
-      figma.ui.postMessage({ type: 'start-auth' });
+      figma.ui.postMessage({ type: 'start-auth' }, { origin: `${SITE_URL}` });
     } else if (msg.type === 'auth-success') {
       console.log('Auth success:', msg.token);
       // Auth succeeded, store the token
@@ -59,11 +59,6 @@ async function startOAuthFlow(): Promise<void> {
         },
         { origin: `${SITE_URL}` }
       );
-    } else if (msg.type === 'user-info-result') {
-      // Got user info, show success notification
-      figma.notify(`Logged in as ${msg.userData.name}`);
-      // Continue with your plugin's main functionality...
-      figma.closePlugin();
     } else if (msg.type === 'auth-error') {
       figma.notify(`Authentication failed: ${msg.error}`);
       figma.closePlugin();
@@ -113,7 +108,6 @@ async function getUserInfo(): Promise<User | null> {
           { origin: `${SITE_URL}` }
         );
       } else if (msg.type === 'user-info-result') {
-        console.log('User info result:', msg.userData);
         clearTimeout(timeoutId);
         resolve(msg.userData);
       } else if (msg.type === 'auth-expired') {
@@ -140,10 +134,18 @@ async function main() {
       if (user) {
         figma.notify(`Logged in as ${user.name}`, {
           timeout: 5000,
-          button: { text: 'Dismiss', action: () => true },
+          onDequeue: () => {
+            // Continue with your plugin's main functionality...
+            figma.closePlugin();
+          },
+          button: {
+            text: 'Dismiss',
+            action: () => {
+              figma.closePlugin();
+              return true;
+            },
+          },
         });
-        // Continue with your plugin's main functionality...
-        figma.closePlugin();
       } else {
         // User info couldn't be fetched, re-authenticate
         await startOAuthFlow();

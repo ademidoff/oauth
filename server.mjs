@@ -1,5 +1,6 @@
 // Backend server (Node.js with Express)
 import express, { json, urlencoded } from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -67,6 +68,7 @@ async function makeRequest(url, options = {}, data = null) {
 
 app.use(json());
 app.use(urlencoded({ extended: true }));
+app.use(cookieParser());
 app.disable('x-powered-by');
 
 // Enable CORS for Figma domains
@@ -80,7 +82,6 @@ app.use(
       'figma:*',
       // For local development
       'http://localhost:3000',
-      '*',
     ],
     credentials: true,
   })
@@ -90,7 +91,7 @@ app.use(
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
-const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
+const SITE_URL = process.env.SITE_URL;
 const SCOPES = 'profile email';
 
 // In-memory storage for auth keys and states (use a database in production)
@@ -108,13 +109,12 @@ async function generateCodeChallenge(codeVerifier) {
   return hash.digest('base64url');
 }
 
-// Middleware to check if the request is from Figma
-function checkFigmaOrigin(req, res, next) {
+// Middleware to check if the request should be authorized
+function checkOrigin(req, res, next) {
   const origin = req.get('Origin');
   if (
     origin &&
-    (origin.startsWith('https://www.figma.com') ||
-      origin.startsWith('http://localhost:3000'))
+    (origin.startsWith('https://www.figma.com') || origin.startsWith(SITE_URL))
   ) {
     next();
   } else {
@@ -307,6 +307,15 @@ app.get('/auth/google', async (req, res) => {
     state: writeKey, // Use the writeKey as the OAuth state parameter
   });
 
+  // Set the write key in a cookie as required by Figma OAuth guidelines
+  // This cookie will be used to verify the state parameter in the callback
+  res.cookie('auth_write_key', writeKey, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // Only use secure in production
+    sameSite: 'lax',
+    maxAge: 1 * 60 * 1000, // 1 minute expiration
+  });
+
   // Construct Google OAuth URL with PKCE parameters
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
@@ -325,9 +334,19 @@ app.get('/auth/google', async (req, res) => {
 // Handle the OAuth callback from Google
 app.get('/auth/callback', async (req, res) => {
   const { code, state } = req.query;
+  const cookieWriteKey = req.cookies.auth_write_key;
 
   if (!code || !state) {
     return res.status(400).send('Missing code or state parameter');
+  }
+
+  // Verify that the state matches the write key stored in the cookie
+  // This is a critical security check required by Figma's OAuth guidelines
+  if (!cookieWriteKey || state !== cookieWriteKey) {
+    console.error('State/Cookie mismatch:', { state, cookieWriteKey });
+    return res
+      .status(400)
+      .send('Invalid state parameter - possible CSRF attack');
   }
 
   // Find the auth data by writeKey (state)
@@ -347,6 +366,9 @@ app.get('/auth/callback', async (req, res) => {
   }
 
   try {
+    // Clear the write key cookie after use
+    res.clearCookie('auth_write_key');
+
     // Exchange authorization code for access token using PKCE
     const tokenResponse = await makeRequest(
       'https://oauth2.googleapis.com/token',
