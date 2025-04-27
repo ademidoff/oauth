@@ -59,6 +59,21 @@ async function startOAuthFlow(): Promise<void> {
         },
         { origin: `${SITE_URL}` }
       );
+    } else if (msg.type === 'user-info-result') {
+      console.log('User info:', msg.user);
+      figma.notify(`Logged in as ${msg.user?.name}`, {
+        timeout: 5000,
+        onDequeue: () => {
+          figma.closePlugin();
+        },
+        button: {
+          text: 'Dismiss',
+          action: () => {
+            figma.closePlugin();
+            return true;
+          },
+        },
+      });
     } else if (msg.type === 'auth-error') {
       figma.notify(`Authentication failed: ${msg.error}`);
       figma.closePlugin();
@@ -109,7 +124,7 @@ async function getUserInfo(): Promise<User | null> {
         );
       } else if (msg.type === 'user-info-result') {
         clearTimeout(timeoutId);
-        resolve(msg.userData);
+        resolve(msg.user);
       } else if (msg.type === 'auth-expired') {
         clearTimeout(timeoutId);
         await clearAccessToken();

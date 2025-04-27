@@ -206,11 +206,11 @@ app.get('/', (req, res) => {
             });
             
             if (response.ok) {
-              const userData = await response.json();
+              const user = await response.json();
               parent.postMessage({ 
                 pluginMessage: { 
                   type: 'user-info-result', 
-                  userData 
+                  user 
                 },
                 pluginId
               }, '*');
@@ -466,14 +466,13 @@ app.get('/auth/user', async (req, res) => {
       }
     );
 
-    const userData = {
+    const user = {
       name: userInfoResponse.data.name,
       email: userInfoResponse.data.email,
       picture: userInfoResponse.data.picture,
     };
 
-    // Return user data
-    res.json(userData);
+    res.json(user);
   } catch (error) {
     console.error('User info error:', error.response?.data || error.message);
 
