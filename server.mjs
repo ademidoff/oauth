@@ -80,6 +80,7 @@ app.use((req, res, next) => {
 
   // Allow specific origins
   let allowedOrigins = [
+    'https://auth.demidoff.me',
     'https://www.figma.com',
     'https://figma.com',
     'figma:*',
