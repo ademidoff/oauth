@@ -410,9 +410,15 @@ app.get('/auth/callback', async (req, res) => {
         </style>
       </head>
       <body>
-        <h2 class="success">Authentication Successful!</h2>
-        <p>You can close this window and return to Figma.</p>
+        <h2 class="success">You are authenticated!</h2>
+        <p>You can return to Figma.</p>
+        <p>This window will close in 5 seconds.</p>
       </body>
+      <script>
+        window.setTimeout(() => {
+          window.close();
+        }, 5000);
+      </script>
       </html>
     `);
   } catch (error) {

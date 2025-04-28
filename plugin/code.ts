@@ -29,67 +29,8 @@ async function isAuthenticated(): Promise<boolean> {
   return !!accessToken;
 }
 
-// Start the OAuth flow using the server-side approach
-async function startOAuthFlow(): Promise<void> {
-  // Create a UI with scripts to handle the OAuth flow
-  figma.showUI(
-    `
-    <script>
-      window.location.href = '${SITE_URL}';
-    </script>
-  `,
-    { width: 1, height: 1, visible: false }
-  );
-
-  // Listen for messages from the UI iframe
-  figma.ui.onmessage = async (msg) => {
-    if (msg.type === 'ui-ready') {
-      // UI is ready, start the auth flow
-      figma.ui.postMessage({ type: 'start-auth' }, { origin: `${SITE_URL}` });
-    } else if (msg.type === 'auth-success') {
-      console.log('Auth success:', msg.token);
-      // Auth succeeded, store the token
-      await storeAccessToken(msg.token);
-
-      // Get user info using the iframe
-      figma.ui.postMessage(
-        {
-          type: 'get-user-info',
-          accessToken: msg.token,
-        },
-        { origin: `${SITE_URL}` }
-      );
-    } else if (msg.type === 'user-info-result') {
-      console.log('User info:', msg.user);
-      figma.notify(`Logged in as ${msg.user?.name}`, {
-        timeout: 5000,
-        onDequeue: () => {
-          figma.closePlugin();
-        },
-        button: {
-          text: 'Dismiss',
-          action: () => {
-            figma.closePlugin();
-            return true;
-          },
-        },
-      });
-    } else if (msg.type === 'auth-error') {
-      figma.notify(`Authentication failed: ${msg.error}`);
-      figma.closePlugin();
-    } else if (msg.type === 'auth-expired') {
-      await clearAccessToken();
-      figma.notify('Authentication expired, please log in again');
-      figma.closePlugin();
-    } else if (msg.type === 'user-info-error') {
-      figma.notify(`Failed to get user info: ${msg.error}`);
-      figma.closePlugin();
-    }
-  };
-}
-
-// Get user information using the access token
-async function getUserInfo(): Promise<User | null> {
+// Start the OAuth flow
+async function authenticate(): Promise<User | null> {
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
@@ -97,24 +38,31 @@ async function getUserInfo(): Promise<User | null> {
     return null;
   }
 
-  // Show UI to use browser APIs for fetching user data
-  figma.showUI(
-    `
-    <script>
-      window.location.href = '${SITE_URL}?action=get-user-info';
-    </script>    
-  `,
-    { width: 1, height: 1, visible: false }
-  );
-
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error('User info request timed out'));
-      figma.closePlugin();
-    }, 10000);
-
+    // From OAuthFlow
     figma.ui.onmessage = async (msg) => {
-      if (msg.type === 'ui-ready-for-user-info') {
+      if (msg.type === 'ui-ready') {
+        // UI is ready, start the auth flow
+        figma.ui.postMessage({ type: 'start-auth' }, { origin: `${SITE_URL}` });
+      } else if (msg.type === 'auth-success') {
+        console.log('Auth success:', msg.token);
+        // Auth succeeded, store the token
+        await storeAccessToken(msg.token);
+        // Get user info using the iframe
+        figma.ui.postMessage(
+          {
+            type: 'get-user-info',
+            accessToken: msg.token,
+          },
+          { origin: `${SITE_URL}` }
+        );
+      } else if (msg.type === 'auth-error') {
+        figma.notify(`Authentication failed: ${msg.error}`);
+      } else if (msg.type === 'auth-expired') {
+        await clearAccessToken();
+        figma.notify('Authentication expired, please log in again');
+        reject(new Error('Authentication expired'));
+      } else if (msg.type === 'ui-ready-for-user-info') {
         figma.ui.postMessage(
           {
             type: 'get-user-info',
@@ -122,16 +70,11 @@ async function getUserInfo(): Promise<User | null> {
           },
           { origin: `${SITE_URL}` }
         );
-      } else if (msg.type === 'user-info-result') {
-        clearTimeout(timeoutId);
-        resolve(msg.user);
-      } else if (msg.type === 'auth-expired') {
-        clearTimeout(timeoutId);
-        await clearAccessToken();
-        reject(new Error('Authentication expired'));
       } else if (msg.type === 'user-info-error') {
-        clearTimeout(timeoutId);
+        figma.notify(`Failed to get user info: ${msg.error}`);
         reject(new Error(msg.error));
+      } else if (msg.type === 'user-info-result') {
+        resolve(msg.user);
       }
     };
   });
@@ -139,31 +82,30 @@ async function getUserInfo(): Promise<User | null> {
 
 // Main plugin function
 async function main() {
+  // Create a UI with scripts to use browser API to handle OAuth
+  figma.showUI(
+    `
+    <script>
+      window.location.href = '${SITE_URL}';
+      // window.location.href = '${SITE_URL}?action=get-user-info';
+    </script>
+  `,
+    { width: 1, height: 1, visible: false }
+  );
+
   // Check if already authenticated
   const authenticated = await isAuthenticated();
 
   if (authenticated) {
     try {
-      const user = await getUserInfo();
+      const user = await authenticate();
       console.log('User info:', user);
       if (user) {
-        figma.notify(`Logged in as ${user.name}`, {
-          timeout: 5000,
-          onDequeue: () => {
-            // Continue with your plugin's main functionality...
-            figma.closePlugin();
-          },
-          button: {
-            text: 'Dismiss',
-            action: () => {
-              figma.closePlugin();
-              return true;
-            },
-          },
-        });
+        figma.notify(`Logged in as ${user.name}`);
+        figma.closePlugin();
       } else {
-        // User info couldn't be fetched, re-authenticate
-        await startOAuthFlow();
+        // If the user could not be fetched, re-authenticate
+        await authenticate();
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -171,11 +113,11 @@ async function main() {
         figma.notify(`Error getting user info: ${error.message}`);
       }
       // If there was an error (like expired token), start auth flow
-      await startOAuthFlow();
+      await authenticate();
     }
   } else {
     // Not authenticated, start the OAuth flow
-    await startOAuthFlow();
+    await authenticate();
   }
 }
 
