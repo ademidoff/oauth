@@ -71,21 +71,34 @@ app.use(urlencoded({ extended: true }));
 app.use(cookieParser());
 app.disable('x-powered-by');
 
-// Enable CORS for Figma domains
-app.use(
-  cors({
-    origin: [
-      'https://www.figma.com',
-      'https://figma.com',
-      'https://www.figma.com/file/*',
-      // Add the desktop app origin if needed
-      'figma:*',
-      // For local development
-      'http://localhost:3000',
-    ],
-    credentials: true,
-  })
-);
+// Enable preflight requests for all routes
+app.options('*', cors());
+
+// Add before your routes but after the cors middleware
+app.use((req, res, next) => {
+  const origin = req.get('Origin');
+  let allowedOrigins = [
+    'https://www.figma.com',
+    'https://figma.com',
+    'figma:*',
+    'http://localhost:3000',
+  ];
+
+  console.log('Request Origin:', origin);
+
+  if (origin.startsWith('figma:') || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    );
+    res.header('Access-Control-Max-Age', '3600'); // Cache preflight response for 1 hour
+  }
+
+  next();
+});
 
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -538,7 +551,7 @@ app.post('/auth/debug', (req, res) => {
   }
 
   const debugData = Array.from(authStore.entries()).map(([key, value]) => ({
-    key: value,
+    [key]: value,
   }));
 
   res.json(debugData);
