@@ -77,6 +77,11 @@ app.options('*', cors());
 // Add before your routes but after the cors middleware
 app.use((req, res, next) => {
   const origin = req.get('Origin');
+  if (!origin) {
+    return next();
+  }
+
+  // Allow specific origins
   let allowedOrigins = [
     'https://www.figma.com',
     'https://figma.com',
