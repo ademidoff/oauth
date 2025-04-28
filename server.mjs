@@ -344,9 +344,7 @@ app.get('/auth/callback', async (req, res) => {
   // This is a critical security check required by Figma's OAuth guidelines
   if (!cookieWriteKey || state !== cookieWriteKey) {
     console.error('State/Cookie mismatch:', { state, cookieWriteKey });
-    return res
-      .status(400)
-      .send('Invalid state parameter - possible CSRF attack');
+    return res.status(400).send('Invalid state parameter or write key');
   }
 
   // Find the auth data by writeKey (state)
@@ -528,6 +526,22 @@ app.post('/auth/refresh', async (req, res) => {
     );
     res.status(500).json({ error: 'Failed to refresh access token' });
   }
+});
+
+// Debug the auth store
+app.post('/auth/debug', (req, res) => {
+  const { token } = req.body;
+
+  if (!token || token !== process.env.DEBUG_TOKEN) {
+    console.error('Unauthorized debug access attempt');
+    return res.status(401).send('Unauthorized');
+  }
+
+  const debugData = Array.from(authStore.entries()).map(([key, value]) => ({
+    key: value,
+  }));
+
+  res.json(debugData);
 });
 
 // Start the server
