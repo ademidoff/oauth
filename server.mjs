@@ -74,6 +74,8 @@ app.disable('x-powered-by');
 // Add before your routes but after the cors middleware
 app.use((req, res, next) => {
   const origin = req.get('Origin');
+  console.log('Request Origin:', origin);
+
   if (!origin) {
     return next();
   }
@@ -86,8 +88,6 @@ app.use((req, res, next) => {
     'figma:*',
     'http://localhost:3000',
   ];
-
-  console.log('Request Origin:', origin);
 
   if (origin.startsWith('figma:') || allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin || '*');
