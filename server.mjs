@@ -71,9 +71,6 @@ app.use(urlencoded({ extended: true }));
 app.use(cookieParser());
 app.disable('x-powered-by');
 
-// Enable preflight requests for all routes
-app.options('*', cors());
-
 // Add before your routes but after the cors middleware
 app.use((req, res, next) => {
   const origin = req.get('Origin');
@@ -99,7 +96,13 @@ app.use((req, res, next) => {
       'Access-Control-Allow-Headers',
       'Origin, X-Requested-With, Content-Type, Accept, Authorization'
     );
-    res.header('Access-Control-Max-Age', '3600'); // Cache preflight response for 1 hour
+    // Cache preflight response for 1 hour
+    res.header('Access-Control-Max-Age', '3600');
+
+    if (req.method === 'OPTIONS') {
+      // Respond to a preflight request
+      return res.status(204).end();
+    }
   }
 
   next();
