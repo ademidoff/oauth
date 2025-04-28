@@ -533,7 +533,7 @@ app.post('/auth/debug', (req, res) => {
   const { token } = req.body;
 
   if (!token || token !== process.env.DEBUG_TOKEN) {
-    console.error('Unauthorized debug access attempt');
+    console.error('Unauthorized debug access attempt', 'token', token);
     return res.status(401).send('Unauthorized');
   }
 
