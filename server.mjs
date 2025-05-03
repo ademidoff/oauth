@@ -114,7 +114,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 const SITE_URL = process.env.SITE_URL;
-const SCOPES = 'profile email';
+const SCOPES = 'profile email openid';
 
 // In-memory storage for auth keys and states (use a database in production)
 const authStore = new Map();
@@ -272,7 +272,12 @@ app.get('/', (req, res) => {
               parent.postMessage({ 
                 pluginMessage: {
                   type: 'auth-success', 
-                  token: data.access_token 
+                  token: data.access_token,
+                  refresh_token: data.refresh_token,
+                  expires_in: data.expires_in,
+                  id_token: data.id_token,
+                  scope: data.scope,
+                  token_type: data.token_type 
                 },
                 pluginId
               }, '*');
@@ -413,8 +418,11 @@ app.get('/auth/callback', async (req, res) => {
       ...authData,
       data: {
         access_token: tokenResponse.data.access_token,
-        refresh_token: tokenResponse.data.refresh_token,
+        refresh_token: tokenResponse.data.refresh_token || null,
         expires_in: tokenResponse.data.expires_in,
+        id_token: tokenResponse.data.id_token || null,
+        scope: tokenResponse.data.scope,
+        token_type: tokenResponse.data.token_type,
       },
     });
 
@@ -540,6 +548,9 @@ app.post('/auth/refresh', async (req, res) => {
     res.json({
       access_token: tokenResponse.data.access_token,
       expires_in: tokenResponse.data.expires_in,
+      token_type: tokenResponse.data.token_type,
+      scope: tokenResponse.data.scope,
+      id_token: tokenResponse.data.id_token || null,
     });
   } catch (error) {
     console.error(
