@@ -5,17 +5,15 @@
   "type": "module",
   "main": "server.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.mjs",
-    "dev": "esbuild plugin/code.ts --bundle --target=es6 --loader:.svg=text --outfile=plugin/dist/code.js --watch",
-    "build": "esbuild plugin/code.ts --bundle --target=es6 --loader:.svg=text --outfile=plugin/dist/code.js"
+    "dev": "esbuild plugin/code.ts --bundle --target=es6 --outfile=plugin/dist/code.js --watch",
+    "build": "esbuild plugin/code.ts --bundle --target=es6 --outfile=plugin/dist/code.js"
   },
   "author": "Alex Demidoff",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@figma/plugin-typings": "*",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0"
   },
