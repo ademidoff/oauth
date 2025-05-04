@@ -72,14 +72,24 @@ async function authenticate(): Promise<User | null> {
 
         // Auth succeeded, store the token info
         await storeToken(tokenInfo);
-        // Get user info using the iframe
-        figma.ui.postMessage(
-          {
-            type: 'get-user-info',
-            accessToken: tokenInfo.token,
-          },
-          { origin: `${SITE_URL}` }
-        );
+        if (!tokenInfo.email) {
+          // Get user info using the iframe
+          figma.ui.postMessage(
+            {
+              type: 'get-user-info',
+              accessToken: tokenInfo.token,
+            },
+            { origin: `${SITE_URL}` }
+          );
+        } else {
+          // User info already available, resolve the promise
+          const user = {
+            name: tokenInfo.name,
+            email: tokenInfo.email,
+            picture: tokenInfo.picture,
+          } as User;
+          resolve(user);
+        }
       } else if (msg.type === 'auth-error') {
         figma.notify(`Authentication failed: ${msg.error}`);
         reject(new Error('Authentication failed'));
@@ -109,6 +119,7 @@ async function main() {
     { width: 1, height: 1, visible: false }
   );
 
+  await clearToken();
   const tokenInfo = await getToken();
 
   if (!tokenInfo) {
