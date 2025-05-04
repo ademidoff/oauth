@@ -474,22 +474,24 @@ app.get('/auth/callback', async (req, res) => {
       </head>
       <body>
         <h2 class="success">You are authenticated!</h2>
-        <p>You can return to Figma.</p>
+        <p>You can return to Figma or the web app.</p>
         <p>This window will close in <span class="countdown">5</span> seconds.</p>
       </body>
       <script>
-        const countdownEl = document.querySelector('.countdown');
-        let seconds = parseInt(countdownEl.textContent, 10);
-        
-        const countdownInterval = setInterval(() => {
-          seconds--;
-          countdownEl.textContent = seconds;
+        document.addEventListener('DOMContentLoaded', () => {
+          const countdownEl = document.querySelector('.countdown');
+          let seconds = parseInt(countdownEl.textContent, 10);
           
-          if (seconds <= 0) {
-            clearInterval(countdownInterval);
-            window.close();
-          }
-        }, 1000);
+          const countdownInterval = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            
+            if (seconds <= 0) {
+              clearInterval(countdownInterval);
+              window.close();
+            }
+          }, 1000);
+        });
       </script>
       </html>
     `);
