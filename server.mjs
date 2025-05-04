@@ -300,17 +300,21 @@ app.get('/', (req, res) => {
                 },
                 pluginId
               }, '*');
+            } else {
+              // Still waiting for authentication
+              console.log("Waiting for authentication...");
+              setTimeout(() => pollForAuthResult(readKey), 2000);
             }
           } else if (response.status === 400) {
             // Invalid key
             console.error("Error:", response.statusText);
-              parent.postMessage({ 
-                pluginMessage: {
-                  type: 'auth-error', 
-                  error: response.statusText,
-                },
-                pluginId
-              }, '*');            
+            parent.postMessage({
+              pluginMessage: {
+                type: 'auth-error', 
+                error: response.statusText,
+              },
+              pluginId
+            }, '*');            
           } else {
             // If we haven't received the token yet, poll again
             setTimeout(() => pollForAuthResult(readKey), 2000);
