@@ -2,7 +2,7 @@ I'm coding a plugin for Figma. My plugin must work well both with Figma's web ap
 
 My plugin needs to authenticate the user at startup using Google OAuth. I have a back-end server component that will handle the OAuth flow.
 
-The server's public URL is already registered with Google at https://auth.demidoff.me and I have OAuth credentials. 
+The server's public URL is already registered with Google at https://auth.rewordy.com and I have OAuth credentials. 
 
 The Figma plugin will use the OAuth flow based on PKCE to authenticate the user and obtain an access token. The access token will be used to fetch user data from the Google API. The plugin needs to access user data such as the user's name, email, and picture.
 
