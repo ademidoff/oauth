@@ -1,13 +1,22 @@
 // Backend server (Node.js with Express)
 import express, { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 
 dotenv.config();
 
 const app = express();
+// Google OAuth configuration
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
+const SITE_URL = process.env.SITE_URL;
+// https://developers.google.com/identity/protocols/oauth2/scopes#oauth2
+const SCOPES = 'profile email openid';
+
+// In-memory storage for auth keys and states (use a database in production)
+const authStore = new Map();
 
 // Helper function to make HTTP requests using native Node.js modules
 async function makeRequest(url, options = {}, data = null) {
@@ -71,7 +80,7 @@ app.use(urlencoded({ extended: true }));
 app.use(cookieParser());
 app.disable('x-powered-by');
 
-// Add before your routes but after the cors middleware
+// Add cors middleware
 app.use((req, res, next) => {
   const origin = req.get('Origin');
   console.log('Request Origin:', origin);
@@ -82,10 +91,9 @@ app.use((req, res, next) => {
 
   // Allow specific origins
   let allowedOrigins = [
-    'https://auth.demidoff.me',
+    SITE_URL,
     'https://www.figma.com',
     'https://figma.com',
-    'figma:*',
     'http://localhost:3000',
   ];
 
@@ -108,16 +116,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-// Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.REDIRECT_URI;
-const SITE_URL = process.env.SITE_URL;
-const SCOPES = 'profile email openid';
-
-// In-memory storage for auth keys and states (use a database in production)
-const authStore = new Map();
 
 // Generate a random string for PKCE code_verifier and auth keys
 function generateRandomString(length) {
@@ -174,7 +172,8 @@ app.get('/favicon.ico', (req, res) => {
   );
 
   res.setHeader('Content-Type', 'image/x-icon');
-  res.setHeader('Cache-Control', 'public, max-age=604800'); // Cache for a week (7 days)
+  // Cache for a week (7 days)
+  res.setHeader('Cache-Control', 'public, max-age=604800');
   res.send(faviconBuffer);
 });
 
