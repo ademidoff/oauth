@@ -144,6 +144,27 @@ function checkOrigin(req, res, next) {
   }
 }
 
+// Decode JWT token
+function decodeJwtToken(token) {
+  try {
+    // JWT structure: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT token format');
+    }
+
+    // Decode the payload (second part)
+    const payload = parts[1];
+    const decodedPayload = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+
+    // Parse the JSON payload
+    return JSON.parse(decodedPayload);
+  } catch (error) {
+    console.error('Failed to decode JWT token:', error);
+    return null;
+  }
+}
+
 // Serve favicon.ico
 app.get('/favicon.ico', (req, res) => {
   // Base64 encoded simple icon (a blue key shape representing authentication)
@@ -254,7 +275,7 @@ app.get('/', (req, res) => {
           }
         }
       };
-      
+
       // Poll the server for auth result
       async function pollForAuthResult(readKey) {
         try {
@@ -268,17 +289,18 @@ app.get('/', (req, res) => {
                   type: 'auth-success', 
                   token: data.access_token,
                   refresh_token: data.refresh_token,
-                  expires_in: data.expires_in,
-                  id_token: data.id_token,
+                  expires_at: data.expires_at,
+                  email: data.email,
+                  name: data.name,
+                  picture: data.picture,
                   scope: data.scope,
-                  token_type: data.token_type 
                 },
                 pluginId
               }, '*');
               return;
             }
           }
-          
+
           // If we haven't received the token yet, poll again
           setTimeout(() => pollForAuthResult(readKey), 2000);
         } catch (error) {
@@ -364,7 +386,7 @@ app.get('/auth/callback', async (req, res) => {
   // Verify that the state matches the write key stored in the cookie
   // This is a critical security check required by Figma's OAuth guidelines
   if (!cookieWriteKey || state !== cookieWriteKey) {
-    console.error('State/Cookie mismatch:', { state, cookieWriteKey });
+    console.error('State/cookie mismatch:', { state, cookieWriteKey });
     return res.status(400).send('Invalid state parameter or write key');
   }
 
@@ -407,17 +429,29 @@ app.get('/auth/callback', async (req, res) => {
       }
     );
 
+    const data = {
+      access_token: tokenResponse.data.access_token,
+      refresh_token: tokenResponse.data.refresh_token || null,
+      expires_at: Date.now() + (tokenResponse.data.expires_in || 3600) * 1000,
+      scope: tokenResponse.data.scope,
+    };
+
+    if (tokenResponse.data?.id_token) {
+      // Decode the ID token to get user information
+      const parsed = decodeJwtToken(tokenResponse.data.id_token);
+      if (parsed) {
+        const { email, name, picture, exp } = parsed;
+        data.email = email;
+        data.name = name;
+        data.picture = picture;
+        data.expires_at = exp * 1000; // Convert to milliseconds
+      }
+    }
+
     // Store the token in our auth store
     authStore.set(readKey, {
       ...authData,
-      data: {
-        access_token: tokenResponse.data.access_token,
-        refresh_token: tokenResponse.data.refresh_token || null,
-        expires_in: tokenResponse.data.expires_in,
-        id_token: tokenResponse.data.id_token || null,
-        scope: tokenResponse.data.scope,
-        token_type: tokenResponse.data.token_type,
-      },
+      data,
     });
 
     // Show success page
@@ -483,14 +517,15 @@ app.get('/auth/user', async (req, res) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  const accessToken = authHeader.split(' ')[1];
+  // const accessToken = authHeader.split(' ')[1];
 
   try {
     // Fetch user info from Google
     const userInfoResponse = await makeRequest(
       'https://www.googleapis.com/oauth2/v2/userinfo',
       {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        // headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: authHeader },
       }
     );
 
@@ -539,17 +574,29 @@ app.post('/auth/refresh', async (req, res) => {
       }
     );
 
-    res.json({
+    const data = {
       access_token: tokenResponse.data.access_token,
-      expires_in: tokenResponse.data.expires_in,
-      token_type: tokenResponse.data.token_type,
+      expires_at: Date.now() + (tokenResponse.data.expires_in || 3600) * 1000,
       scope: tokenResponse.data.scope,
-      id_token: tokenResponse.data.id_token || null,
-    });
+    };
+
+    if (tokenResponse.data?.id_token) {
+      // Decode the ID token to get user information
+      const parsed = decodeJwtToken(tokenResponse.data.id_token);
+      if (parsed) {
+        const { email, name, picture, exp } = parsed;
+        data.email = email;
+        data.name = name;
+        data.picture = picture;
+        data.expires_at = exp * 1000; // Convert to milliseconds
+      }
+    }
+
+    res.json(data);
   } catch (error) {
     console.error(
       'Token refresh error:',
-      error.response?.data || error.message
+      error?.response?.data || error.message
     );
     res.status(500).json({ error: 'Failed to refresh access token' });
   }
