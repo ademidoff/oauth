@@ -119,7 +119,6 @@ async function main() {
     { width: 1, height: 1, visible: false }
   );
 
-  await clearToken();
   const tokenInfo = await getToken();
 
   if (!tokenInfo) {
