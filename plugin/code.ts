@@ -24,7 +24,16 @@ async function storeToken(token: TokenInfo): Promise<void> {
 
 // Get the token from figma client storage
 async function getToken(): Promise<TokenInfo> {
-  return await figma.clientStorage.getAsync('token_info');
+  const token = await figma.clientStorage.getAsync('token_info');
+  if (token) {
+    const remainingMs = getTokenRemainingTime(token);
+    if (remainingMs === 0) {
+      // Token expired, we must clear it
+      await clearToken();
+    }
+  }
+
+  return token;
 }
 
 // Clear the token from figma client storage
@@ -39,6 +48,8 @@ async function authenticate(): Promise<User | null> {
   return new Promise((resolve, reject) => {
     // From OAuthFlow
     figma.ui.onmessage = async (msg) => {
+      console.log('Received message type:', msg.type);
+
       if (msg.type === 'ui-ready') {
         if (tokenInfo) {
           // figma.notify('User authenticated');
@@ -57,8 +68,8 @@ async function authenticate(): Promise<User | null> {
           );
         }
       } else if (msg.type === 'auth-success') {
-        console.log('Auth success:', msg);
         const { type, ...tokenInfo } = msg;
+        console.log('Auth success');
 
         // Auth succeeded, store the token info
         await storeToken(tokenInfo);
@@ -100,7 +111,6 @@ async function main() {
   );
 
   const tokenInfo = await getToken();
-  console.log('Token info:', tokenInfo);
 
   if (!tokenInfo) {
     try {
@@ -122,23 +132,14 @@ async function main() {
       await authenticate();
     }
   } else {
-    const remainingMs = await getTokenRemainingTime();
-    if (remainingMs === 0) {
-      // Token expired, clear it and re-authenticate
-      await clearToken();
-      figma.notify('Token expired, please log in again');
-      authenticate();
-    } else {
-      console.log('Already authenticated, token info:', tokenInfo);
-      figma.notify('Already authenticated');
-      figma.closePlugin();
-    }
+    console.log('User authenticated, email:', tokenInfo.email);
+    figma.notify('User authenticated');
+    figma.closePlugin();
   }
 }
 
 // Add a function to check remaining token lifetime
-async function getTokenRemainingTime(): Promise<number | null> {
-  const tokenInfo = await getToken();
+function getTokenRemainingTime(tokenInfo: TokenInfo): number | null {
   if (!tokenInfo) {
     return null;
   }
