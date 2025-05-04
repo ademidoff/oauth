@@ -48,7 +48,7 @@ async function authenticate(): Promise<User | null> {
   return new Promise((resolve, reject) => {
     // From OAuthFlow
     figma.ui.onmessage = async (msg) => {
-      console.log('Received message type:', msg.type);
+      console.log('Received message:', msg.type);
 
       if (msg.type === 'ui-ready') {
         if (tokenInfo) {
@@ -69,7 +69,6 @@ async function authenticate(): Promise<User | null> {
         }
       } else if (msg.type === 'auth-success') {
         const { type, ...tokenInfo } = msg;
-        console.log('Auth success');
 
         // Auth succeeded, store the token info
         await storeToken(tokenInfo);

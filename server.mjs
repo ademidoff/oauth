@@ -182,6 +182,10 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="robots" content="noindex">
+      <link rel="icon" href="/favicon.ico" type="image/x-icon">
       <title>Authentication</title>
       <style>
         body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
@@ -458,6 +462,10 @@ app.get('/auth/callback', async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="robots" content="noindex">
+        <link rel="icon" href="/favicon.ico" type="image/x-icon">
         <title>Authentication</title>
         <style>
           body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
@@ -467,12 +475,21 @@ app.get('/auth/callback', async (req, res) => {
       <body>
         <h2 class="success">You are authenticated!</h2>
         <p>You can return to Figma.</p>
-        <p>This window will close in 5 seconds.</p>
+        <p>This window will close in <span class="countdown">5</span> seconds.</p>
       </body>
       <script>
-        window.setTimeout(() => {
-          window.close();
-        }, 5000);
+        const countdownEl = document.querySelector('.countdown');
+        let seconds = parseInt(countdownEl.textContent, 10);
+        
+        const countdownInterval = setInterval(() => {
+          seconds--;
+          countdownEl.textContent = seconds;
+          
+          if (seconds <= 0) {
+            clearInterval(countdownInterval);
+            window.close();
+          }
+        }, 1000);
       </script>
       </html>
     `);
