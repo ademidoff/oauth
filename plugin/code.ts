@@ -8,68 +8,75 @@ interface User {
   picture: string;
 }
 
+interface TokenInfo {
+  token: string;
+  expiresAt: number;
+  refreshToken: string;
+  email: string;
+  name: string;
+  picture: string;
+}
+
 // Store access token in figma client storage
-async function storeAccessToken(token: string): Promise<void> {
-  await figma.clientStorage.setAsync('access_token', token);
+async function storeToken(token: TokenInfo): Promise<void> {
+  await figma.clientStorage.setAsync('token_info', token);
 }
 
-// Get access token from figma client storage
-async function getAccessToken(): Promise<string> {
-  return await figma.clientStorage.getAsync('access_token');
+// Get the token from figma client storage
+async function getToken(): Promise<TokenInfo> {
+  return await figma.clientStorage.getAsync('token_info');
 }
 
-// Clear access token from figma client storage
-async function clearAccessToken(): Promise<void> {
-  await figma.clientStorage.setAsync('access_token', null);
-}
-
-// Check if user is authenticated
-async function isAuthenticated(): Promise<boolean> {
-  const accessToken = await getAccessToken();
-  return !!accessToken;
+// Clear the token from figma client storage
+async function clearToken(): Promise<void> {
+  await figma.clientStorage.setAsync('token_info', null);
 }
 
 // Start the OAuth flow
 async function authenticate(): Promise<User | null> {
-  const accessToken = await getAccessToken();
-
-  if (!accessToken) {
-    figma.notify('Not authenticated');
-    return null;
-  }
+  const tokenInfo = await getToken();
 
   return new Promise((resolve, reject) => {
     // From OAuthFlow
     figma.ui.onmessage = async (msg) => {
       if (msg.type === 'ui-ready') {
-        // UI is ready, start the auth flow
-        figma.ui.postMessage({ type: 'start-auth' }, { origin: `${SITE_URL}` });
+        if (tokenInfo) {
+          // figma.notify('User authenticated');
+          figma.ui.postMessage(
+            {
+              type: 'get-user-info',
+              accessToken: tokenInfo.token,
+            },
+            { origin: `${SITE_URL}` }
+          );
+        } else {
+          // UI is ready, start the auth flow
+          figma.ui.postMessage(
+            { type: 'start-auth' },
+            { origin: `${SITE_URL}` }
+          );
+        }
       } else if (msg.type === 'auth-success') {
-        console.log('Auth success:', msg.token);
-        // Auth succeeded, store the token
-        await storeAccessToken(msg.token);
+        console.log('Auth success:', msg);
+        const { type, ...tokenInfo } = msg;
+
+        // Auth succeeded, store the token info
+        await storeToken(tokenInfo);
         // Get user info using the iframe
         figma.ui.postMessage(
           {
             type: 'get-user-info',
-            accessToken: msg.token,
+            accessToken: tokenInfo.token,
           },
           { origin: `${SITE_URL}` }
         );
       } else if (msg.type === 'auth-error') {
         figma.notify(`Authentication failed: ${msg.error}`);
+        reject(new Error('Authentication failed'));
       } else if (msg.type === 'auth-expired') {
-        await clearAccessToken();
+        await clearToken();
         figma.notify('Authentication expired, please log in again');
         reject(new Error('Authentication expired'));
-      } else if (msg.type === 'ui-ready-for-user-info') {
-        figma.ui.postMessage(
-          {
-            type: 'get-user-info',
-            accessToken,
-          },
-          { origin: `${SITE_URL}` }
-        );
       } else if (msg.type === 'user-info-error') {
         figma.notify(`Failed to get user info: ${msg.error}`);
         reject(new Error(msg.error));
@@ -87,16 +94,15 @@ async function main() {
     `
     <script>
       window.location.href = '${SITE_URL}';
-      // window.location.href = '${SITE_URL}?action=get-user-info';
     </script>
   `,
     { width: 1, height: 1, visible: false }
   );
 
-  // Check if already authenticated
-  const authenticated = await isAuthenticated();
+  const tokenInfo = await getToken();
+  console.log('Token info:', tokenInfo);
 
-  if (authenticated) {
+  if (!tokenInfo) {
     try {
       const user = await authenticate();
       console.log('User info:', user);
@@ -116,9 +122,30 @@ async function main() {
       await authenticate();
     }
   } else {
-    // Not authenticated, start the OAuth flow
-    await authenticate();
+    const remainingMs = await getTokenRemainingTime();
+    if (remainingMs === 0) {
+      // Token expired, clear it and re-authenticate
+      await clearToken();
+      figma.notify('Token expired, please log in again');
+      authenticate();
+    } else {
+      console.log('Already authenticated, token info:', tokenInfo);
+      figma.notify('Already authenticated');
+      figma.closePlugin();
+    }
   }
+}
+
+// Add a function to check remaining token lifetime
+async function getTokenRemainingTime(): Promise<number | null> {
+  const tokenInfo = await getToken();
+  if (!tokenInfo) {
+    return null;
+  }
+
+  const remainingMs = tokenInfo.expiresAt - Date.now();
+  // Return seconds remaining
+  return remainingMs > 0 ? Math.floor(remainingMs / 1000) : 0;
 }
 
 // Run the plugin
