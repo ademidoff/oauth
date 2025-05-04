@@ -300,12 +300,21 @@ app.get('/', (req, res) => {
                 },
                 pluginId
               }, '*');
-              return;
             }
+          } else if (response.status === 400) {
+            // Invalid key
+            console.error("Error:", response.statusText);
+              parent.postMessage({ 
+                pluginMessage: {
+                  type: 'auth-error', 
+                  error: response.statusText,
+                },
+                pluginId
+              }, '*');            
+          } else {
+            // If we haven't received the token yet, poll again
+            setTimeout(() => pollForAuthResult(readKey), 2000);
           }
-
-          // If we haven't received the token yet, poll again
-          setTimeout(() => pollForAuthResult(readKey), 2000);
         } catch (error) {
           console.error("Polling error:", error);
           // Keep polling even if there's an error

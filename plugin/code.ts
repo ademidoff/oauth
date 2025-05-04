@@ -92,7 +92,7 @@ async function authenticate(): Promise<User | null> {
         }
       } else if (msg.type === 'auth-error') {
         figma.notify(`Authentication failed: ${msg.error}`);
-        reject(new Error('Authentication failed'));
+        reject(new Error('Authentication failed: ' + msg.error));
       } else if (msg.type === 'auth-expired') {
         await clearToken();
         figma.notify('Authentication expired, please log in again');
