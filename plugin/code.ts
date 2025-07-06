@@ -1,4 +1,3 @@
-// declare const SITE_URL: string;
 const SITE_URL = 'https://auth.demidoff.me';
 const pluginId = figma.pluginId;
 

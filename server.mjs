@@ -633,22 +633,6 @@ app.post('/auth/refresh', async (req, res) => {
   }
 });
 
-// Debug the auth store
-app.post('/auth/debug', (req, res) => {
-  const { token } = req.body;
-
-  if (!token || token !== process.env.DEBUG_TOKEN) {
-    console.error('Unauthorized debug access attempt', 'token', token);
-    return res.status(401).send('Unauthorized');
-  }
-
-  const debugData = Array.from(authStore.entries()).map(([key, value]) => ({
-    [key]: value,
-  }));
-
-  res.json(debugData);
-});
-
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
